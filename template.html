@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ceny ujemne RDN</title>
+<meta name="description" content="Ceny ujemne na polskim rynku energii elektrycznej (TGE, RDN) – analiza wg dnia tygodnia, godziny, miesiąca i roku.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23222'/%3E%3Cpath d='M58 10 28 56h20l-8 34 32-48H52z' fill='%23fff'/%3E%3C/svg%3E">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1f2328; --muted: #5f6670; --border: #e1e4e8;
+    --bar: #4285f4; --grid: #e6e8eb; --head: #e9ebee; --heat: 52, 168, 83;
+    --y2023: #9aa0a6; --y2024: #ea4335; --y2025: #1a66d2; --y2026: #a8b74a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a; --card: #1e2125; --text: #e8eaed; --muted: #9aa0a6; --border: #30343a;
+      --bar: #6ea0f7; --grid: #2c3036; --head: #262a2f; --heat: 76, 200, 110;
+      --y2023: #9aa0a6; --y2024: #f28b82; --y2025: #8ab4f8; --y2026: #c5d36a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --card: #1e2125; --text: #e8eaed; --muted: #9aa0a6; --border: #30343a;
+    --bar: #6ea0f7; --grid: #2c3036; --head: #262a2f; --heat: 76, 200, 110;
+    --y2023: #9aa0a6; --y2024: #f28b82; --y2025: #8ab4f8; --y2026: #c5d36a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; margin-bottom: 16px; }
+  .brand { display: flex; gap: 14px; align-items: center; flex: 1 1 280px; }
+  .brand svg { width: 56px; height: 56px; flex: none; }
+  h1 { font-size: 22px; margin: 0; line-height: 1.2; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .filter { flex: 0 1 220px; padding: 0; overflow: hidden; }
+  .filter h2 { margin: 0; padding: 8px 14px; font-size: 13px; background: var(--head); display: flex; justify-content: space-between; align-items: center; }
+  .filter h2 button { font: inherit; font-size: 12px; color: var(--bar); background: none; border: 0; cursor: pointer; padding: 0; }
+  .filter .opts { padding: 8px 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .filter label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .filter label.off { color: var(--muted); cursor: default; }
+  .filter input { width: 16px; height: 16px; accent-color: var(--bar); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .value { font-size: 26px; font-weight: 650; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi .note { color: var(--muted); font-size: 12px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .full { grid-column: 1 / -1; }
+  h3 { margin: 0 0 10px; font-size: 14px; text-align: center; }
+  .chart { position: relative; height: 260px; }
+  .chart.tall { height: 380px; }
+  .heat-wrap { overflow-x: auto; }
+  table.heat { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  table.heat th { font-weight: 500; color: var(--muted); padding: 6px 8px; text-align: right; white-space: nowrap; }
+  table.heat th:first-child { text-align: left; }
+  table.heat thead th { border-bottom: 1px solid var(--border); }
+  table.heat td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--grid); }
+  table.heat tbody th { border-bottom: 1px solid var(--grid); }
+  table.heat tfoot th, table.heat tfoot td { font-weight: 650; color: var(--text); border-top: 1px solid var(--border); border-bottom: 0; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 20px; text-align: center; }
+  footer a { color: inherit; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) {
+    .filter { flex: 1 1 140px; }
+    .chart.tall { height: 320px; }
+    table.heat { font-size: 12px; }
+    table.heat th, table.heat td { padding: 4px 5px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48" fill="currentColor"/><path d="M58 10 28 56h20l-8 34 32-48H52z" fill="var(--card)"/></svg>
+      <div>
+        <h1>Ceny ujemne na polskim<br>rynku energii elektrycznej</h1>
+        <div class="sub" id="range"></div>
+      </div>
+    </div>
+    <div class="card filter">
+      <h2>Rynek RDN <button type="button" data-all="product">wszystkie</button></h2>
+      <div class="opts" id="f-product"></div>
+    </div>
+    <div class="card filter">
+      <h2>Rok <button type="button" data-all="year">wszystkie</button></h2>
+      <div class="opts" id="f-year"></div>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="label">Godziny z ceną ujemną</div><div class="value" id="k-count">–</div><div class="note" id="k-share"></div></div>
+    <div class="card kpi"><div class="label">Najniższa cena</div><div class="value" id="k-min">–</div><div class="note" id="k-min-when"></div></div>
+    <div class="card kpi"><div class="label">Średnia cena ujemna</div><div class="value" id="k-avg">–</div><div class="note">PLN/MWh</div></div>
+    <div class="card kpi"><div class="label">Dni z ceną ujemną</div><div class="value" id="k-days">–</div><div class="note" id="k-last"></div></div>
+  </section>
+
+  <main class="grid">
+    <div class="col">
+      <section class="card">
+        <h3>Liczba cen ujemnych w podziale na dzień tygodnia</h3>
+        <div class="chart"><canvas id="c-weekday"></canvas></div>
+      </section>
+      <section class="card">
+        <h3>Liczba cen ujemnych w podziale na miesiące</h3>
+        <div class="chart"><canvas id="c-month"></canvas></div>
+      </section>
+    </div>
+    <section class="card">
+      <h3>Liczba cen ujemnych – godzina × dzień tygodnia</h3>
+      <div class="heat-wrap"><table class="heat" id="heat"></table></div>
+    </section>
+    <section class="card full">
+      <h3>Skumulowana liczba cen ujemnych w podziale na lata</h3>
+      <div class="chart tall"><canvas id="c-cumul"></canvas></div>
+    </section>
+  </main>
+
+  <footer>
+    Źródło danych: TGE – Rynek Dnia Następnego. Cena ujemna = cena &lt; 0 PLN/MWh.
+    Godzina „01” oznacza okres 00:00–01:00, „00” okres 23:00–24:00. <span id="gen"></span>
+  </footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+const WEEKDAYS = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"];
+const WEEKDAYS_SHORT = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nd"];
+const MONTHS = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
+const MONTHS_SHORT = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"];
+const ALL_PRODUCTS = ["continuous", "fixing1", "fixing2"];
+const YEAR_FALLBACK = ["#9aa0a6", "#ea4335", "#1a66d2", "#a8b74a", "#f29900", "#a142f4", "#12b5cb"];
+
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = n => n.toLocaleString("pl-PL");
+const lastDay = new Date(DATA.lastDay + "T00:00:00");
+const lastYM = { y: lastDay.getFullYear(), m: lastDay.getMonth() + 1 };
+
+// ---------- filtry ----------
+const state = {
+  product: new Set(DATA.products.includes("fixing1") ? ["fixing1"] : DATA.products.slice(0, 1)),
+  year: new Set(DATA.years),
+};
+try {
+  const saved = JSON.parse(localStorage.getItem("ceny-ujemne-filters") || "null");
+  if (saved) {
+    const p = saved.product.filter(x => DATA.products.includes(x));
+    const y = saved.year.filter(x => DATA.years.includes(x));
+    if (p.length) state.product = new Set(p);
+    if (y.length) state.year = new Set(y);
+  }
+} catch (e) {}
+
+function buildFilter(key, el, items) {
+  el.innerHTML = "";
+  for (const it of items) {
+    const lab = document.createElement("label");
+    const inp = document.createElement("input");
+    inp.type = "checkbox";
+    inp.value = it.value;
+    inp.disabled = !!it.disabled;
+    inp.checked = !it.disabled && state[key].has(it.value);
+    if (it.disabled) { lab.className = "off"; lab.title = "Brak danych w pliku CSV"; }
+    inp.addEventListener("change", () => {
+      inp.checked ? state[key].add(it.value) : state[key].delete(it.value);
+      render();
+    });
+    lab.append(inp, document.createTextNode(it.label));
+    el.append(lab);
+  }
+}
+const productItems = [...new Set([...ALL_PRODUCTS, ...DATA.products])].map(p => ({
+  value: p, label: p, disabled: !DATA.products.includes(p),
+}));
+const yearItems = [...DATA.years].reverse().map(y => ({ value: y, label: String(y) }));
+buildFilter("product", document.getElementById("f-product"), productItems);
+buildFilter("year", document.getElementById("f-year"), yearItems);
+document.querySelectorAll("[data-all]").forEach(btn => btn.addEventListener("click", () => {
+  const key = btn.dataset.all;
+  const values = key === "year" ? DATA.years : DATA.products;
+  state[key] = state[key].size === values.length ? new Set() : new Set(values);
+  document.querySelectorAll(`#f-${key} input:not(:disabled)`).forEach(i => { i.checked = state[key].has(key === "year" ? +i.value : i.value); });
+  render();
+}));
+
+// ---------- wykresy ----------
+Chart.register(ChartDataLabels);
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.maintainAspectRatio = false;
+Chart.defaults.animation.duration = 300;
+
+const charts = {};
+function themeChart() {
+  Chart.defaults.color = css("--muted");
+  Chart.defaults.borderColor = css("--grid");
+}
+themeChart();
+
+function barChart(id, labels, values, opts = {}) {
+  const color = css("--bar");
+  const cfg = {
+    type: "bar",
+    data: { labels, datasets: [{ data: values, backgroundColor: color, borderRadius: 3, maxBarThickness: 70 }] },
+    options: {
+      layout: { padding: { top: 20 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${fmt(c.parsed.y)} h` } },
+        datalabels: {
+          anchor: "end", align: "end", offset: 0, color,
+          font: { size: opts.smallLabels ? 10 : 12 },
+          display: c => c.dataset.data[c.dataIndex] > 0,
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { autoSkip: true, maxRotation: opts.rotate ? 45 : 0, minRotation: opts.rotate ? 45 : 0 } },
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+      },
+    },
+  };
+  if (charts[id]) { charts[id].destroy(); }
+  charts[id] = new Chart(document.getElementById(id), cfg);
+}
+
+function yearColor(y, i) {
+  return css(`--y${y}`) || YEAR_FALLBACK[i % YEAR_FALLBACK.length];
+}
+
+function render() {
+  try { localStorage.setItem("ceny-ujemne-filters", JSON.stringify({ product: [...state.product], year: [...state.year] })); } catch (e) {}
+
+  const rec = DATA.records.filter(r => state.year.has(r[0]) && state.product.has(DATA.products[r[4]]));
+  const years = [...state.year].sort();
+
+  // KPI
+  document.getElementById("k-count").textContent = fmt(rec.length);
+  document.getElementById("k-share").textContent = rec.length
+    ? `liczba godzin (rekordów) z ceną < 0` : "brak cen ujemnych dla wybranych filtrów";
+  if (rec.length) {
+    const min = rec.reduce((a, r) => r[5] < a[5] ? r : a, rec[0]);
+    const avg = rec.reduce((s, r) => s + r[5], 0) / rec.length;
+    document.getElementById("k-min").textContent = fmt(min[5]) + " zł";
+    document.getElementById("k-min-when").textContent = `${min[6]}, godz. ${String(min[3] % 24).padStart(2, "0")} (${DATA.products[min[4]]})`;
+    document.getElementById("k-avg").textContent = fmt(Math.round(avg * 100) / 100);
+    const days = new Set(rec.map(r => r[6]));
+    document.getElementById("k-days").textContent = fmt(days.size);
+    document.getElementById("k-last").textContent = `ostatnio: ${rec[rec.length - 1][6]}`;
+  } else {
+    ["k-min", "k-avg", "k-days"].forEach(id => document.getElementById(id).textContent = "–");
+    ["k-min-when", "k-last"].forEach(id => document.getElementById(id).textContent = "");
+  }
+
+  // dzień tygodnia
+  const byWd = Array(7).fill(0);
+  rec.forEach(r => byWd[r[2]]++);
+  barChart("c-weekday", window.innerWidth < 520 ? WEEKDAYS_SHORT : WEEKDAYS, byWd);
+
+  // miesiące – od pierwszego miesiąca z ceną ujemną do ostatniego miesiąca z danymi
+  const mLabels = [], mValues = [];
+  if (rec.length) {
+    const counts = new Map();
+    rec.forEach(r => { const k = r[0] * 12 + r[1] - 1; counts.set(k, (counts.get(k) || 0) + 1); });
+    const start = Math.min(...counts.keys());
+    const end = Math.min(Math.max(...years) * 12 + 11, lastYM.y * 12 + lastYM.m - 1);
+    for (let k = start; k <= end; k++) {
+      const y = Math.floor(k / 12), m = k % 12;
+      if (!state.year.has(y)) continue;
+      mLabels.push(`${MONTHS_SHORT[m]} ${y}`);
+      mValues.push(counts.get(k) || 0);
+    }
+  }
+  barChart("c-month", mLabels, mValues, { rotate: true, smallLabels: true });
+
+  // heatmapa godzina × dzień tygodnia
+  const heat = Array.from({ length: 24 }, () => Array(7).fill(0));
+  rec.forEach(r => heat[r[3] - 1][r[2]]++);
+  const max = Math.max(1, ...heat.flat());
+  const rgb = css("--heat");
+  let html = "<thead><tr><th>Godz.</th>" +
+    (window.innerWidth < 700 ? WEEKDAYS_SHORT : WEEKDAYS).map(d => `<th>${d}</th>`).join("") + "<th>Suma</th></tr></thead><tbody>";
+  heat.forEach((row, i) => {
+    const label = String((i + 1) % 24).padStart(2, "0");
+    html += `<tr><th>${label}</th>` + row.map(v => {
+      const a = v ? 0.08 + 0.82 * v / max : 0;
+      const strong = a > 0.55 ? "color:#fff;font-weight:600;" : "";
+      return `<td style="background:rgba(${rgb},${a.toFixed(3)});${strong}">${v}</td>`;
+    }).join("") + `<td><b>${row.reduce((a, b) => a + b, 0)}</b></td></tr>`;
+  });
+  html += "</tbody><tfoot><tr><th>Suma</th>" + byWd.map(v => `<td>${v}</td>`).join("") + `<td>${rec.length}</td></tr></tfoot>`;
+  document.getElementById("heat").innerHTML = html;
+
+  // skumulowana liczba w podziale na lata
+  const datasets = years.map((y, i) => {
+    const perMonth = Array(12).fill(0);
+    rec.filter(r => r[0] === y).forEach(r => perMonth[r[1] - 1]++);
+    const first = perMonth.findIndex(v => v > 0);
+    const lastM = y === lastYM.y ? lastYM.m - 1 : 11;
+    let acc = 0;
+    const data = perMonth.map((v, m) => {
+      acc += v;
+      return first === -1 || m < first || m > lastM ? null : acc;
+    });
+    const color = yearColor(y, i);
+    return {
+      label: String(y), data, borderColor: color, backgroundColor: color,
+      pointRadius: 3, pointHoverRadius: 5, tension: 0, spanGaps: false,
+      datalabels: { align: "top", color, font: { size: 11 } },
+    };
+  });
+  if (charts["c-cumul"]) charts["c-cumul"].destroy();
+  charts["c-cumul"] = new Chart(document.getElementById("c-cumul"), {
+    type: "line",
+    data: { labels: window.innerWidth < 700 ? MONTHS_SHORT : MONTHS, datasets },
+    options: {
+      layout: { padding: { top: 24, right: 10 } },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { usePointStyle: true, pointStyle: "line" } },
+        datalabels: { display: c => c.dataset.data[c.dataIndex] != null && window.innerWidth >= 520 },
+      },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
+    },
+  });
+}
+
+document.getElementById("range").textContent = `Dane TGE RDN: ${DATA.firstDay} – ${DATA.lastDay}`;
+document.getElementById("gen").textContent = `Wygenerowano: ${DATA.generated}.`;
+
+let lastWide = window.innerWidth;
+window.addEventListener("resize", () => {
+  const w = window.innerWidth;
+  const bp = x => (x < 520) + (x < 700);
+  if (bp(w) !== bp(lastWide)) render();
+  lastWide = w;
+});
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { themeChart(); render(); });
+
+render();
+</script>
+</body>
+</html>
